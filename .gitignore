@@ -1,0 +1,26 @@
+# === PXT build and cache ===
+built/
+pxt_modules/
+pxtapp.json
+yotta_modules/
+yotta_targets/
+node_modules/
+tmp/
+*.db
+
+# === IDE / OS junk files ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+
+# === Backup / temp ===
+*~
+*.bak
+*.swp
+
+# === npm lock files (optional) ===
+package-lock.json

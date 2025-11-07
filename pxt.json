@@ -1,0 +1,14 @@
+{
+    "name": "pxt-blinkbot-v1",
+    "version": "0.0.1",
+    "description": "BlinkBot basic movement blocks for micro:bit robot",
+    "license": "MIT",
+    "dependencies": {
+        "core": "*",
+        "microphone": "*"
+    },
+    "files": [
+        "main.ts"
+    ],
+    "public": true
+}
