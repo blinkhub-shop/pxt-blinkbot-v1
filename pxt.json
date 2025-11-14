@@ -10,5 +10,9 @@
     "files": [
         "main.ts"
     ],
-    "public": true
+    "public": true,
+    "supportedTargets": [
+        "microbit"
+    ],
+    "preferredEditor": "blocksprj"
 }
