@@ -1,6 +1,6 @@
 {
   "dependencies": {
     "pxt-core": "^12.1.17",
-    "pxt-microbit": "^8.0.18"
+    "pxt-microbit": "^8.1.6"
   }
 }

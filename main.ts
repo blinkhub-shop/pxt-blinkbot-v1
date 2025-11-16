@@ -1,5 +1,5 @@
-//% color=#0066cc icon="\uf1fb" block="BlinkBot V1"
-namespace BlinkBotV1 {
+//% color=#0066cc icon="\uf013" block="BlinkCore ⭐"
+namespace BlinkCore  {
   const PCA9685_ADDRESS = 0x40;
 
   const PRESCALE = 0xfe;
@@ -33,7 +33,7 @@ namespace BlinkBotV1 {
     S8: 90,
   };
 
-  //% block="initialize PCA9685"
+  //% block="initialize PCA9685 (เริ่มใช่งานโมดูล)"
   export function initPCA9685(): void {
     i2cwrite(0x40, 0x00, 0x00);
     setFreq(50);
@@ -88,7 +88,7 @@ namespace BlinkBotV1 {
     return val;
   }
 
-  //% block="set servo |%index|degree %degree"
+  //% block="set servo (หมุนเซอร์โว) |%index|degree %degree"
   export function setServo(index: Servos, degree: number): void {
     // 50hz: 20,000 us
     let v_us = (degree * 1800) / 180 + 600; // 0.6 ~ 2.4
@@ -96,7 +96,7 @@ namespace BlinkBotV1 {
     setPwm(index + 7, 0, value);
   }
 
-  //% block="sweep servo %index|degree %degree|delay %delay ms"
+  //% block="sweep servo (หมุนเซอร์โวสมูท) %index|degree %degree|delay %delay ms"
   //% delay.defl=10
   export function sweepServo(
     index: Servos,
@@ -115,7 +115,7 @@ namespace BlinkBotV1 {
     }
   }
 
-  //% block="move servos sync to S1 %s1 S2 %s2 S3 %s3 S4 %s4 S5 %s5 S6 %s6 S7 %s7 S8 %s8 in %duration ms"
+  //% block="move servos sync to (หมุนเซอร์โวพร้อมกัน) S1 %s1 S2 %s2 S3 %s3 S4 %s4 S5 %s5 S6 %s6 S7 %s7 S8 %s8 in %duration ms"
   //% s1.min=0 s1.max=180 s1.defl=90
   //% s2.min=0 s2.max=180 s2.defl=90
   //% s3.min=0 s3.max=180 s3.defl=90
@@ -210,7 +210,7 @@ namespace BlinkBotV1 {
     }
   }
 
-  //% block="motor run|%index|speed %speed"
+  //% block="motor run (มอเตอร์ทำงาน)|%index|speed %speed"
   export function motorRun(index: Motors, speed: number): void {
     speed = speed * 16; // map 255 to 4096
     if (speed >= 4096) {
@@ -229,5 +229,129 @@ namespace BlinkBotV1 {
       setPwm(pp, 0, 0);
       setPwm(pn, 0, -speed);
     }
+  }
+}
+
+//% color=#0066cc icon="\uf11b" block="BlinkEvent ⭐"
+namespace BlinkEvent {
+  // กำหนด Event ID (ต้องไม่ซ้ำกับของระบบ)
+  const EVENT_ID = 3100;
+
+  // ค่าที่ใช้แทนสี
+  export enum ColorEnum {
+    //% block="red"
+    Red = 1,
+    //% block="green"
+    Green = 2,
+    //% block="blue"
+    Blue = 3,
+  }
+
+  // สร้าง BLOCK สำหรับ Event
+  //% block="on color detected(ตรวจสอบสี) %color"
+  //% color.shadow="colorenum"
+  export function onColorDetected(color: ColorEnum, handler: () => void) {
+    // เริ่ม loop monitoring อัตโนมัติ (ครั้งแรกครั้งเดียว)
+    startColorMonitoring();
+    // สมัคร handler กับ Event system
+    control.onEvent(EVENT_ID, color, handler);
+  }
+
+  /**
+   * ฟังก์ชันยิง event (ไว้เรียกจาก loop ภายใน extension)
+   * ตัวนี้จะไม่เป็น block เพื่อไม่ให้ผู้ใช้เรียกเอง
+   */
+  function raiseColorEvent(color: ColorEnum) {
+    control.raiseEvent(EVENT_ID, color);
+  }
+
+  /**
+   * ตัวอย่างจำลองการตรวจจับสี
+   * ในเวอร์ชันจริงคุณจะเขียนฟังก์ชัน readColor() ให้คืนค่า RGB จริง
+   */
+  function detectColor(): ColorEnum {
+    let r = Math.random() * 255;
+    let g = Math.random() * 255;
+    let b = Math.random() * 255;
+
+    r = Math.floor(r);
+    g = Math.floor(g);
+    b = Math.floor(b);
+
+    if (r > g && r > b) return ColorEnum.Red;
+    if (g > r && g > b) return ColorEnum.Green;
+    return ColorEnum.Blue;
+  }
+
+  /**
+   * Loop ตรวจสีตลอดเวลา + ยิง event เมื่อมีการเปลี่ยนสี
+   */
+  let lastColor = 0;
+  let monitoringStarted = false;
+
+  function startColorMonitoring() {
+    if (monitoringStarted) return;
+    monitoringStarted = true;
+
+    control.inBackground(function () {
+      while (true) {
+        let current = detectColor();
+
+        // ถ้าสีเปลี่ยน → ยิง event
+        if (current != lastColor) {
+          raiseColorEvent(current);
+          lastColor = current;
+        }
+
+        basic.pause(200);
+      }
+    });
+  }
+
+  const EVENT_ID_DARK = 3101;
+
+  let darkWatcherStarted = false;
+  let darkThresholds: number[] = [];
+  let darkLastState: boolean[] = [];
+
+  function startDarkWatcher(): void {
+    if (darkWatcherStarted) return;
+    darkWatcherStarted = true;
+
+    control.inBackground(function () {
+      while (true) {
+        const light = input.lightLevel();
+
+        for (let i = 0; i < darkThresholds.length; i++) {
+          const th = darkThresholds[i];
+          const isDark = light < th;
+
+          if (isDark && !darkLastState[i]) {
+            control.raiseEvent(EVENT_ID_DARK, th);
+          }
+
+          darkLastState[i] = isDark;
+        }
+
+        basic.pause(100);
+      }
+    });
+  }
+
+  //% blockId=blinkbot_on_dark
+  //% block="on BlinkBot dark (ตรวจสอบความมืด) (light < %threshold)"
+  //% threshold.min=0 threshold.max=255 threshold.defl=50
+  //% blockAllowMultiple=1
+  //% afterOnStart=true
+  export function onDark(threshold: number, handler: () => void): void {
+    // เก็บ threshold สำหรับ watcher
+    darkThresholds.push(threshold);
+    darkLastState.push(false);
+
+    // เริ่ม watcher อัตโนมัติ (ครั้งแรกครั้งเดียว)
+    startDarkWatcher();
+
+    // register event handler
+    control.onEvent(EVENT_ID_DARK, threshold, handler);
   }
 }
