@@ -1,5 +1,5 @@
 //% color=#0066cc icon="\uf013" block="BlinkCore ⭐"
-namespace BlinkCore  {
+namespace BlinkCore {
   const PCA9685_ADDRESS = 0x40;
 
   const PRESCALE = 0xfe;
@@ -115,29 +115,21 @@ namespace BlinkCore  {
     }
   }
 
-  //% block="move servos sync to (หมุนเซอร์โวพร้อมกัน) S1 %s1 S2 %s2 S3 %s3 S4 %s4 S5 %s5 S6 %s6 S7 %s7 S8 %s8 in %duration ms"
+  //% block="move servos sync (หมุนเซอร์โวพร้อมกัน) in(ms) %duration S1 %s1 S2 %s2 S3 %s3 S4 %s4"
+  //% duration.defl=1000
   //% s1.min=0 s1.max=180 s1.defl=90
   //% s2.min=0 s2.max=180 s2.defl=90
   //% s3.min=0 s3.max=180 s3.defl=90
   //% s4.min=0 s4.max=180 s4.defl=90
-  //% s5.min=0 s5.max=180 s5.defl=90
-  //% s6.min=0 s6.max=180 s6.defl=90
-  //% s7.min=0 s7.max=180 s7.defl=90
-  //% s8.min=0 s8.max=180 s8.defl=90
-  //% duration.defl=1000
   export function moveServosSync(
+    duration: number,
     s1: number,
     s2: number,
     s3: number,
-    s4: number,
-    s5: number,
-    s6: number,
-    s7: number,
-    s8: number,
-    duration: number
+    s4: number
   ): void {
     // targets[1..8] = เป้าหมายของ S1..S8
-    let targets: number[] = [0, s1, s2, s3, s4, s5, s6, s7, s8];
+    let targets: number[] = [0, s1, s2, s3, s4];
     let starts: number[] = [];
     let deltas: number[] = [];
     let maxDist = 0;
@@ -229,6 +221,98 @@ namespace BlinkCore  {
       setPwm(pp, 0, 0);
       setPwm(pn, 0, -speed);
     }
+  }
+
+  //% blockId=blinkbot_line_follow_step
+  //% block="line follow (เดินตามเส้น) |max speed %maxSpeed|left sensor %leftPin|right sensor %rightPin"
+  //% maxSpeed.min=0 maxSpeed.max=255 maxSpeed.defl=150
+  //% weight=70
+  export function lineFollowStep(
+    maxSpeed: number,
+    leftPin: DigitalPin,
+    rightPin: DigitalPin
+  ): void {
+    // กันค่า speed หลุด
+    if (maxSpeed < 0) maxSpeed = 0;
+    if (maxSpeed > 255) maxSpeed = 255;
+
+    // ความเร็วเวลาหักเลี้ยว (ลดฝั่งหนึ่งลงเหลือประมาณ 30%)
+    const slowSpeed = Math.floor((maxSpeed * 3) / 10);
+
+    // อ่านค่า sensor ดิจิทัล
+    const left = pins.digitalReadPin(leftPin);
+    const right = pins.digitalReadPin(rightPin);
+
+    // *** สมมติ: 0 = เจอเส้นดำ, 1 = ไม่เจอเส้น ***
+    const ON_LINE = 0;
+
+    if (left == ON_LINE && right == ON_LINE) {
+      // อยู่บนเส้นทั้งสอง → วิ่งตรง
+      motorRun(Motors.M1A, maxSpeed); // ซ้าย
+      motorRun(Motors.M2A, maxSpeed); // ขวา
+    } else if (left == ON_LINE && right != ON_LINE) {
+      // เส้นอยู่ด้านซ้าย → เลี้ยวซ้าย (ลดสปีดล้อซ้าย)
+      motorRun(Motors.M1A, slowSpeed);
+      motorRun(Motors.M2A, maxSpeed);
+    } else if (right == ON_LINE && left != ON_LINE) {
+      // เส้นอยู่ด้านขวา → เลี้ยวขวา (ลดสปีดล้อขวา)
+      motorRun(Motors.M1A, maxSpeed);
+      motorRun(Motors.M2A, slowSpeed);
+    } else {
+      // หาเส้นไม่เจอทั้งสองข้าง → หยุด (หรือจะให้วิ่งต่อก็แล้วแต่)
+      motorRun(Motors.M1A, 0);
+      motorRun(Motors.M2A, 0);
+    }
+  }
+
+  // -------- ENUMS สำหรับ dropdown --------
+
+  // หมุนซ้าย/ขวา
+  export enum ArmRotateDirection {
+    //% block="left"
+    Left = 0,
+    //% block="right"
+    Right = 1,
+  }
+
+  // ยกขึ้น/ลง
+  export enum ArmLiftDirection {
+    //% block="up"
+    Up = 0,
+    //% block="down"
+    Down = 1,
+  }
+
+  // คีบ / ปล่อย
+  export enum GripperAction {
+    //% block="grip"
+    Grip = 0,
+    //% block="release"
+    Release = 1,
+  }
+
+  // -------- BLOCK 1: หมุนซ้ายขวา --------
+  //% blockId=blink_arm_rotate
+  //% block="rotate arm %direction"
+  //% weight=80
+  export function rotateArm(direction: ArmRotateDirection): void {
+    // TODO: ใส่โค้ดบังคับเซอร์โวหมุนซ้าย/ขวา
+  }
+
+  // -------- BLOCK 2: ยกขึ้นลง --------
+  //% blockId=blink_arm_lift
+  //% block="lift arm %direction"
+  //% weight=79
+  export function liftArm(direction: ArmLiftDirection): void {
+    // TODO: ใส่โค้ดยก/กดแขนกล
+  }
+
+  // -------- BLOCK 3: คีบ / ปล่อย --------
+  //% blockId=blink_gripper_control
+  //% block="gripper %action"
+  //% weight=78
+  export function controlGripper(action: GripperAction): void {
+    // TODO: ใส่โค้ดคีบ/ปล่อย
   }
 }
 
