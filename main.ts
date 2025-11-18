@@ -237,7 +237,8 @@ namespace BlinkCore {
     if (maxSpeed > 255) maxSpeed = 255;
 
     // ความเร็วเวลาหักเลี้ยว (ลดฝั่งหนึ่งลงเหลือประมาณ 30%)
-    const slowSpeed = Math.floor((maxSpeed * 3) / 10);
+    // const slowSpeed = Math.floor((maxSpeed * 3) / 10);
+    const slowSpeed = 0;
 
     // อ่านค่า sensor ดิจิทัล
     const left = pins.digitalReadPin(leftPin);
@@ -318,80 +319,6 @@ namespace BlinkCore {
 
 //% color=#0066cc icon="\uf11b" block="BlinkEvent ⭐"
 namespace BlinkEvent {
-  // กำหนด Event ID (ต้องไม่ซ้ำกับของระบบ)
-  const EVENT_ID = 3100;
-
-  // ค่าที่ใช้แทนสี
-  export enum ColorEnum {
-    //% block="red"
-    Red = 1,
-    //% block="green"
-    Green = 2,
-    //% block="blue"
-    Blue = 3,
-  }
-
-  // สร้าง BLOCK สำหรับ Event
-  //% block="on color detected(ตรวจสอบสี) %color"
-  //% color.shadow="colorenum"
-  export function onColorDetected(color: ColorEnum, handler: () => void) {
-    // เริ่ม loop monitoring อัตโนมัติ (ครั้งแรกครั้งเดียว)
-    startColorMonitoring();
-    // สมัคร handler กับ Event system
-    control.onEvent(EVENT_ID, color, handler);
-  }
-
-  /**
-   * ฟังก์ชันยิง event (ไว้เรียกจาก loop ภายใน extension)
-   * ตัวนี้จะไม่เป็น block เพื่อไม่ให้ผู้ใช้เรียกเอง
-   */
-  function raiseColorEvent(color: ColorEnum) {
-    control.raiseEvent(EVENT_ID, color);
-  }
-
-  /**
-   * ตัวอย่างจำลองการตรวจจับสี
-   * ในเวอร์ชันจริงคุณจะเขียนฟังก์ชัน readColor() ให้คืนค่า RGB จริง
-   */
-  function detectColor(): ColorEnum {
-    let r = Math.random() * 255;
-    let g = Math.random() * 255;
-    let b = Math.random() * 255;
-
-    r = Math.floor(r);
-    g = Math.floor(g);
-    b = Math.floor(b);
-
-    if (r > g && r > b) return ColorEnum.Red;
-    if (g > r && g > b) return ColorEnum.Green;
-    return ColorEnum.Blue;
-  }
-
-  /**
-   * Loop ตรวจสีตลอดเวลา + ยิง event เมื่อมีการเปลี่ยนสี
-   */
-  let lastColor = 0;
-  let monitoringStarted = false;
-
-  function startColorMonitoring() {
-    if (monitoringStarted) return;
-    monitoringStarted = true;
-
-    control.inBackground(function () {
-      while (true) {
-        let current = detectColor();
-
-        // ถ้าสีเปลี่ยน → ยิง event
-        if (current != lastColor) {
-          raiseColorEvent(current);
-          lastColor = current;
-        }
-
-        basic.pause(200);
-      }
-    });
-  }
-
   const EVENT_ID_DARK = 3101;
 
   let darkWatcherStarted = false;
@@ -437,5 +364,143 @@ namespace BlinkEvent {
 
     // register event handler
     control.onEvent(EVENT_ID_DARK, threshold, handler);
+  }
+}
+
+//% color=#AA00FF icon="\uf53f" block="BlinkColor ⭐"
+namespace BlinkColor {
+  const TCS34725_ADDRESS = 0x29;
+  const TCS34725_COMMAND_BIT = 0x80;
+
+  const REG_ENABLE = 0x00;
+  const REG_ATIME = 0x01;
+  const REG_CONTROL = 0x0f;
+  const REG_CDATAL = 0x14;
+
+  let _initialized = false;
+
+  // เขียน 8-bit register
+  function tcsWrite8(reg: number, value: number): void {
+    let buf = pins.createBuffer(2);
+    buf[0] = TCS34725_COMMAND_BIT | reg;
+    buf[1] = value & 0xff;
+    pins.i2cWriteBuffer(TCS34725_ADDRESS, buf);
+  }
+
+  // อ่าน 16-bit (LE) จาก register (Clear/Red/Green/Blue ใช้ 2 byte)
+  function tcsRead16(reg: number): number {
+    let buf = pins.createBuffer(1);
+    buf[0] = TCS34725_COMMAND_BIT | reg;
+    pins.i2cWriteBuffer(TCS34725_ADDRESS, buf);
+    return pins.i2cReadNumber(TCS34725_ADDRESS, NumberFormat.UInt16LE);
+  }
+
+  function init(): void {
+    if (_initialized) return;
+    _initialized = true;
+
+    // ATIME: เวลาสะสมแสง (integration time)
+    // 0xEB ≈ 50ms (พอใช้ได้สำหรับหุ่น)
+    tcsWrite8(REG_ATIME, 0xeb);
+
+    // CONTROL: Gain (ขยายสัญญาณ)
+    // 0x01 = 4x
+    tcsWrite8(REG_CONTROL, 0x01);
+
+    // ENABLE: Power ON + RGBC
+    tcsWrite8(REG_ENABLE, 0x01); // Power ON
+    basic.pause(3);
+    tcsWrite8(REG_ENABLE, 0x03); // Power ON + RGBC
+    basic.pause(50); // รอให้เริ่มอ่านได้จริง ๆ
+  }
+
+  // -------- RAW VALUE (ใช้ debug / คำนวนต่อเอง) --------
+
+  //% blockId=blinkcolor_clear_raw
+  //% block="TCS34725 clear (แสงรวม RAW)"
+  export function clearRaw(): number {
+    init();
+    return tcsRead16(REG_CDATAL);
+  }
+
+  //% blockId=blinkcolor_red_raw
+  //% block="TCS34725 red (แดง RAW)"
+  export function redRaw(): number {
+    init();
+    return tcsRead16(REG_CDATAL + 2);
+  }
+
+  //% blockId=blinkcolor_green_raw
+  //% block="TCS34725 green (เขียว RAW)"
+  export function greenRaw(): number {
+    init();
+    return tcsRead16(REG_CDATAL + 4);
+  }
+
+  //% blockId=blinkcolor_blue_raw
+  //% block="TCS34725 blue (น้ำเงิน RAW)"
+  export function blueRaw(): number {
+    init();
+    return tcsRead16(REG_CDATAL + 6);
+  }
+
+  // -------- คืนเป็นชุด RGB --------
+
+  //% blockId=blinkcolor_rgb_raw
+  //% block="TCS34725 read RGB RAW"
+  export function rgbRaw(): number[] {
+    init();
+    const r = redRaw();
+    const g = greenRaw();
+    const b = blueRaw();
+    return [r, g, b];
+  }
+
+  // -------- แปลงเป็น 0–255 (ประมาณค่าไว้ใช้เทียบสีง่าย ๆ) --------
+
+  function normalizeTo255(v: number, maxVal: number): number {
+    if (maxVal <= 0) return 0;
+    let x = (v * 255) / maxVal;
+    if (x < 0) x = 0;
+    if (x > 255) x = 255;
+    return Math.round(x);
+  }
+
+  //% blockId=blinkcolor_red_255
+  //% block="TCS34725 red (แดง 0-255)"
+  export function red(): number {
+    init();
+    const c = clearRaw();
+    const r = redRaw();
+    return normalizeTo255(r, c);
+  }
+
+  //% blockId=blinkcolor_green_255
+  //% block="TCS34725 green (เขียว 0-255)"
+  export function green(): number {
+    init();
+    const c = clearRaw();
+    const g = greenRaw();
+    return normalizeTo255(g, c);
+  }
+
+  //% blockId=blinkcolor_blue_255
+  //% block="TCS34725 blue (น้ำเงิน 0-255)"
+  export function blue(): number {
+    init();
+    const c = clearRaw();
+    const b = blueRaw();
+    return normalizeTo255(b, c);
+  }
+
+  //% blockId=blinkcolor_rgb_255
+  //% block="TCS34725 read RGB 0-255"
+  export function rgb(): number[] {
+    init();
+    const c = clearRaw();
+    const r = normalizeTo255(redRaw(), c);
+    const g = normalizeTo255(greenRaw(), c);
+    const b = normalizeTo255(blueRaw(), c);
+    return [r, g, b];
   }
 }
