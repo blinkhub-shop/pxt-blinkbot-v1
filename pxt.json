@@ -1,18 +1,14 @@
 {
-    "name": "pxt-blinkbot-v1",
-    "version": "0.0.1",
-    "description": "BlinkBot basic movement blocks for micro:bit robot",
-    "license": "MIT",
-    "dependencies": {
-        "core": "*",
-        "microphone": "*"
-    },
-    "files": [
-        "main.ts"
-    ],
-    "public": true,
-    "supportedTargets": [
-        "microbit"
-    ],
-    "preferredEditor": "blocksprj"
+  "name": "pxt-blinkbot-v1",
+  "version": "0.0.1",
+  "description": "BlinkBot basic movement blocks for micro:bit robot",
+  "license": "MIT",
+  "dependencies": {
+    "core": "*",
+    "microphone": "*"
+  },
+  "files": ["main.ts", "i2c.ts", "PCA9685.ts", "motor.ts", "servo.ts"],
+  "public": true,
+  "supportedTargets": ["microbit"],
+  "preferredEditor": "blocksprj"
 }
